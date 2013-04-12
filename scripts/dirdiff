@@ -1,0 +1,264 @@
+#!/bin/bash
+# dirdiff  compares the contents of two directories
+# made by Ragnar Paulson 2004
+
+SCRIPT=`basename "$0"`
+FILELIST=/tmp/$SCRIPT.list$$
+DIFFS=/tmp/$SCRIPT.diffs$$
+BADUSAGE="Type \"$SCRIPT -h\" for command usage."
+
+EXCLUDE_LIST=
+EXCLUDE_DIRLIST=
+BINARY=false
+IGNORECR=false
+IGNOREEXIST=false
+LISTONLY=false
+QUIET=false
+RECURSIVE=false
+SHOWLEFT=false
+SHOWRIGHT=false
+IGNORETEXT=false
+DIFFOPTS=
+CMPOPTS=
+
+OPTIND=1
+while getopts bBce:E:hlqrLRTX switch; do
+   case "$switch" in
+   b)
+DIFFOPTS="$DIFFOPTS -b"
+;;
+   B)
+BINARY=true
+;;
+   c)
+IGNORECR=true
+;;
+   e)
+EXCLUDE_LIST="$EXCLUDE_LIST $OPTARG"
+;;
+   E)
+       EXCLUDE_DIRLIST="$EXCLUDE_DIRLIST $OPTARG"
+    ;;
+   h)
+echo "$SCRIPT -- Compare files in two directories."
+echo "Usage: $SCRIPT [options] leftdir rightdir"
+echo "Options:"
+echo "   -b        ignore trailing blanks"
+echo "   -B        include comparison of binary files"
+echo "   -c        ignore trailing carriage returns"
+echo "   -e file   exclude file from comparison"
+echo "   -E dir    exclude subdirectory from comparison"
+echo "   -l        list filenames only"
+echo "   -q        quiet mode (only list filename if there are differences)"
+echo "   -r        recursive mode (descend all subdirectories)"
+echo "   -L        show contents of files that only exist in leftdir"
+echo "   -R        show contents of files that only exist in rightdir"
+echo "   -T        ignore files that are text in one directory"
+echo "   -X        ignore files that only exist in one directory"
+exit 0
+;;
+   l)
+LISTONLY=true
+QUIET=true
+;;
+   q)
+QUIET=true
+;;
+   r)
+RECURSIVE=true
+;;
+   L)
+SHOWLEFT=true
+;;
+   R)
+SHOWRIGHT=true
+;;
+   T)
+IGNORETEXT=true
+;;
+   X)
+IGNOREEXIST=true
+;;
+   \?)
+echo "$BADUSAGE" >&2
+exit 1
+;;
+   esac
+done
+shift `expr $OPTIND - 1`
+
+if [ $# -ne 2 ]; then
+   echo "$BADUSAGE" >&2
+   exit 1
+elif [ ! -d "$1" ]; then
+   echo "Invalid directory: $1" >&2
+   echo "$BADUSAGE" >&2
+   exit 1
+elif [ ! -d "$2" ]; then
+   echo "Invalid directory: $2" >&2
+   echo "$BADUSAGE" >&2
+   exit 1
+fi
+
+cdir=`pwd` # current directory
+cd "$2"
+rdir=`pwd` # right directory
+cd "$cdir"
+cd "$1"
+ldir=`pwd` # left directory
+
+if [ "$ldir" = "$rdir" ]; then
+   exit 0
+fi
+
+NODIRS=`(for name in $EXCLUDE_DIRLIST; do
+   find "$ldir" -name "$name" -type d -print | sed "s;^$ldir/;;"
+   find "$rdir" -name "$name" -type d -print | sed "s;^$rdir/;;"
+done) | sort | uniq`
+
+if $RECURSIVE; then
+   (
+find "$ldir" -type f -print | sed "s;^$ldir/;;"
+find "$rdir" -type f -print | sed "s;^$rdir/;;"
+   ) | sort | uniq >"$FILELIST"
+else
+   (
+'ls' -a1 "$ldir" | while read f; do
+    if [ ! -d "$ldir/$f" ]; then
+        echo "$f"
+    fi
+done
+'ls' -a1 "$rdir" | while read f; do
+    if [ ! -d "$rdir/$f" ]; then
+        echo "$f"
+    fi
+done
+   ) | sort | uniq >"$FILELIST"
+fi
+
+while read f; do
+   if [ -n "$EXCLUDE_LIST" ]; then
+doexclude=false
+for exclude in $EXCLUDE_LIST; do
+    if [ "`basename \"$f\"`" = "$exclude" ]; then
+ doexclude=true
+ break
+    fi
+done
+if $doexclude; then
+    continue
+fi
+   fi
+
+   if [ -n "$NODIRS" ]; then
+       doexclude=false
+       for dir in $NODIRS; do
+           quit=`expr "$f" : "$dir"`
+           if [ $quit -gt 0 ]; then
+               doexclude=true
+               break
+           fi
+       done
+       if $doexclude; then
+    continue
+       fi
+   fi
+
+   lfile="$ldir/$f"
+   rfile="$rdir/$f"
+   if [ -f "$lfile" ]; then
+if [ -f "$rfile" ]; then
+    if file "$lfile" | grep "text\$" >/dev/null; then
+ if file "$rfile" | grep "text\$" >/dev/null; then
+     if $IGNORECR; then
+  lfile=/tmp/$SCRIPT.lfile$$
+  sed "s;
+*$;;" "$ldir/$f" >"$lfile"
+  rfile=/tmp/$SCRIPT.rfile$$
+  sed "s;
+*$;;" "$rdir/$f" >"$rfile"
+     fi
+     if $QUIET; then
+  diff $DIFFOPTS "$lfile" "$rfile" >"$DIFFS"
+  if [ -s "$DIFFS" ]; then
+      if $LISTONLY; then
+   echo "$f"
+      else
+   echo "FILE: $f"
+   cat "$DIFFS"
+      fi
+  fi
+     else
+  echo "FILE: $f"
+  diff $DIFFOPTS "$lfile" "$rfile"
+     fi
+     if $IGNORECR; then
+  rm -f "$lfile" "$rfile"
+     fi
+ else
+     if $IGNORETEXT; then
+  continue
+     elif $LISTONLY; then
+  echo "$f"
+     else
+  echo "FILE: $f is not a text file in $rdir"
+     fi
+ fi
+    elif file "$rfile" | grep "text\$" >/dev/null; then
+ if $IGNORETEXT; then
+     continue
+ elif $LISTONLY; then
+     echo "$f"
+ else
+     echo "FILE: $f is not a text file in $ldir"
+ fi
+    elif $BINARY; then
+ if $QUIET; then
+     cmp $CMPOPTS "$lfile" "$rfile" >"$DIFFS"
+     if [ -s "$DIFFS" ]; then
+  if $LISTONLY; then
+      echo "$f"
+  else
+      echo "FILE: $f"
+      cat "$DIFFS"
+  fi
+     fi
+ else
+     echo "FILE: $f"
+     cmp $CMPOPTS "$lfile" "$rfile"
+ fi
+    fi
+else
+    if $IGNOREEXIST; then
+ continue
+    elif $LISTONLY; then
+ echo "$f"
+    else
+ echo "FILE: $f does not exist in $rdir"
+ if $SHOWLEFT; then
+     if file "$lfile" | grep "text\$" >/dev/null; then
+  cat "$lfile" | sed "s;^;<;;"
+     fi
+ fi
+    fi
+fi
+   else
+if $IGNOREEXIST; then
+    continue
+elif $LISTONLY; then
+    echo "$f"
+else
+    echo "FILE: $f does not exist in $ldir"
+    if $SHOWRIGHT; then
+ if file "$rfile" | grep "text\$" >/dev/null; then
+     cat "$rfile" | sed "s;^;>;;"
+ fi
+    fi
+fi
+   fi
+done <"$FILELIST"
+
+rm -f "$FILELIST" "$DIFFS"
+
+exit 0
+

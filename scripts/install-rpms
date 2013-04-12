@@ -1,0 +1,4 @@
+#!/bin/sh
+sudo yum -y remove libjansson-2.1-0.x86_64 libjansson-2.1-0.x86_64
+cd ~/rpms
+sudo rpm -Uvh *.rpm

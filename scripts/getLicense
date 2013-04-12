@@ -1,0 +1,4 @@
+#!/bin/bash
+find . -name "*.rpm" |xargs rpm -qp --queryformat '%{name},%{version},%{license}\n'
+#rpm -qp --queryformat '%{name},%{version},%{license}\n' $* 
+#rpm -qa |xargs rpm -q --queryformat '%{name},%{version},%{license}\n' 2>&1 |tee license_info.txt

@@ -1,0 +1,9 @@
+#!/bin/bash -x
+
+echo "Write ......";
+dd if=/dev/zero of=$HOME/tmp/spd-test bs=16k count=100k
+echo "Read ......";
+dd if=$HOME/tmp/spd-test of=/dev/null bs=16k count=100k
+
+##Remove file
+/bin/rm -rf $HOME/tmp/spd-test

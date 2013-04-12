@@ -1,0 +1,4 @@
+#!/bin/bash
+#rsync -r -a -v --delete /home/cvs rsync://rsync.nixcraft.in/cvs
+#rsync -zavrR --delete --links --rsh="ssh -l vivek" my.old.server.com:/home/lighttpd /home/lighttpd
+

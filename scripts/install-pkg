@@ -1,0 +1,3 @@
+#!/bin/bash
+rpm -ivh ~jas.bhardwaj/downloads/file-libs-5.09-1.x86_64.rpm --nodeps --force
+rpm -ivh ~jas.bhardwaj/downloads/file-5.09-1.x86_64.rpm --nodeps --force

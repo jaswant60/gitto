@@ -1,0 +1,24 @@
+#!/bin/bash -x
+# my-ssh-add
+
+#important -- it wont work if $HOME is 777 (too open)
+chmod 755 $HOME
+
+if [ $# -ne 1 ]; then
+    echo "usage: my-ssh-add <host>" >&2;
+    echo "Copies your public key to the remote host, so you can login w/o a password." >&2;
+    exit 2;
+fi
+
+host="$1";
+public_key=$HOME/.ssh/id_dsa.pub
+if [ ! -f $public_key ]; then
+    ssh-keygen -d 
+fi
+
+cat $public_key | ssh $host 'mkdir -p .ssh && cat >> .ssh/authorized_keys2 && chmod 644 .ssh/authorized_keys2'
+#cat $public_key >> .ssh/authorized_keys2
+ssh-keyscan -t rsa $host >> .ssh/known_hosts
+chmod 600 $HOME/.ssh/authorized_keys2
+chmod 700 $HOME/.ssh
+
